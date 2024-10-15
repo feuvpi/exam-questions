@@ -1,15 +1,31 @@
 import 'package:flutter/material.dart';
+import '../services/database_helper.dart';
+import '../models/question.dart';
 
-class QuestionScreen extends StatelessWidget {
+class QuestionScreen extends StatefulWidget {
   final String examType;
 
   const QuestionScreen({Key? key, required this.examType}) : super(key: key);
+
+    @override
+  _QuestionScreenState createState() => _QuestionScreenState();
+}
+
+class _QuestionScreenState extends State<QuestionScreen> {
+  late Future<List<Question>> _questionsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _questionsFuture = DatabaseHelper.instance.getQuestions(widget.examType);
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(examType),
+        title: Text(widget.examType),
         elevation: 0,
         backgroundColor: Colors.blue[700],
       ),
