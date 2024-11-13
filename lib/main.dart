@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
-import 'screens/menu_screen.dart';
+import 'services/database_helper.dart';
 
-void main() {
+// void main() {
+//   runApp(MyApp());
+// }
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DatabaseHelper.populateDatabaseFromUrls([
+    'https://raw.githubusercontent.com/kananinirav/AWS-Certified-Cloud-Practitioner-Notes/master/practice-exam/practice-exam-1.md',
+    // Add more URLs here
+  ]);
   runApp(MyApp());
 }
 
