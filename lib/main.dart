@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
+import 'screens/SplashScreen.dart';
 import 'services/database_helper.dart';
 
 // void main() {
@@ -8,6 +8,7 @@ import 'services/database_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // await DatabaseHelper.printDatabaseLocation();
   await DatabaseHelper.populateDatabaseFromUrls([
     'https://raw.githubusercontent.com/kananinirav/AWS-Certified-Cloud-Practitioner-Notes/master/practice-exam/practice-exam-1.md',
     // Add more URLs here
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: LoginScreen(), // Start with the login screen
+      home: SplashScreen(), // Start with the login screen
     );
   }
 }

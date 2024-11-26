@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/question.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:logger/logger.dart';
+
+import '../models/question_filter.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -177,6 +182,7 @@ static Future<void> populateDatabaseFromUrls(List<String> urls) async {
         continue;
       }
 
+  
       // Extract alternatives
       Map<String, String> alternatives = {};
       for (Match altMatch in alternativesRegex.allMatches(alternativesText)) {
@@ -245,6 +251,113 @@ static Future<void> _processUrl(String url) async {
   }
 }
 
+static Future<void> printDatabaseLocation() async {
+  try {
+    // Get the database path
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'questions.db');
+    print('\n--- Database Location Info ---');
+    print('Full database path: $path');
+    
+    // Check if file exists
+    bool exists = await File(path).exists();
+    print('Database file exists: $exists');
+    
+    // Get all app directories
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final appSupportDir = await getApplicationSupportDirectory();
+    final tempDir = await getTemporaryDirectory();
+    
+    print('\nAll relevant directories:');
+    print('Documents Directory: ${appDocDir.path}');
+    print('Support Directory: ${appSupportDir.path}');
+    print('Temporary Directory: ${tempDir.path}');
+    
+    // For the actual database directory
+    Directory dbDir = Directory(dbPath);
+    if (await dbDir.exists()) {
+      print('\nDatabase directory contents:');
+      await for (var entity in dbDir.list()) {
+        print('- ${entity.path}');
+      }
+    }
+    
+    print('\nParent directory contents:');
+    await for (var entity in dbDir.parent.list()) {
+      print('- ${entity.path}');
+    }
+    
+    print('------------------------\n');
+  } catch (e) {
+    print('Error while getting database location: $e');
+  }
+}
+
+
+Future<List<Question>> getFilteredQuestions(String examType, QuestionFilter filter) async {
+  final db = await instance.database;
+  String whereClause;
+  List<dynamic> whereArgs;
+
+  switch (filter) {
+    case QuestionFilter.unanswered:
+      whereClause = 'examType = ? AND answeredRight IS NULL';
+      whereArgs = [examType];
+      break;
+    case QuestionFilter.all:
+      whereClause = 'examType = ?';
+      whereArgs = [examType];
+      break;
+    case QuestionFilter.answeredCorrect:
+      whereClause = 'examType = ? AND answeredRight = 1';
+      whereArgs = [examType];
+      break;
+    case QuestionFilter.answeredIncorrect:
+      whereClause = 'examType = ? AND answeredRight = 0';
+      whereArgs = [examType];
+      break;
+    case QuestionFilter.answered:
+      whereClause = 'examType = ? AND answeredRight IS NOT NULL';
+      whereArgs = [examType];
+      break;
+  }
+
+  final result = await db.query(
+    'questions',
+    where: whereClause,
+    whereArgs: whereArgs,
+  );
+
+  print("Found ${result.length} questions for $examType with filter ${filter.name}");
+  return result.map((map) => Question.fromMap(map)).toList();
+}
+
+Future<Map<String, int>> getQuestionStats(String examType) async {
+  final db = await instance.database;
+  
+  final total = Sqflite.firstIntValue(await db.rawQuery(
+    'SELECT COUNT(*) FROM questions WHERE examType = ?',
+    [examType]
+  )) ?? 0;
+  
+  final answered = Sqflite.firstIntValue(await db.rawQuery(
+    'SELECT COUNT(*) FROM questions WHERE examType = ? AND answeredRight IS NOT NULL',
+    [examType]
+  )) ?? 0;
+  
+  final correct = Sqflite.firstIntValue(await db.rawQuery(
+    'SELECT COUNT(*) FROM questions WHERE examType = ? AND answeredRight = 1',
+    [examType]
+  )) ?? 0;
+
+  return {
+    'total': total,
+    'answered': answered,
+    'correct': correct,
+    'incorrect': answered - correct,
+    'unanswered': total - answered,
+  };
+}
 }
 
 class HttpException implements Exception {

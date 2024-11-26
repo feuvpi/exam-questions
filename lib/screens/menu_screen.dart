@@ -4,10 +4,10 @@ import '../services/database_helper.dart';
 
 class MenuScreen extends StatelessWidget {
   final List<Map<String, dynamic>> exams = [
-    {'name': 'AWS Certified Cloud Practitioner', 'icon': Icons.cloud_outlined},
-    {'name': 'AWS Certified Solutions Architect', 'icon': Icons.architecture},
-    {'name': 'AWS Certified Developer', 'icon': Icons.code},
-    {'name': 'AWS Certified SysOps Administrator', 'icon': Icons.settings_applications},
+    {'name': 'AWS Certified Cloud Practitioner', 'icon': Icons.cloud_outlined, 'description': 'Foundation level certification for AWS Cloud understanding'},
+    {'name': 'AWS Certified Solutions Architect', 'icon': Icons.architecture, 'description': 'Design and deploy systems on AWS infrastructure'},
+    {'name': 'AWS Certified Developer', 'icon': Icons.code, 'description': 'Develop and maintain AWS-based applications'},
+    {'name': 'AWS Certified SysOps Administrator', 'icon': Icons.settings_applications, 'description': 'Deploy, manage, and operate AWS systems'},
   ];
 
   MenuScreen({Key? key}) : super(key: key);
@@ -20,60 +20,92 @@ class MenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('AWS Certification Prep'),
-        elevation: 0,
-        backgroundColor: Colors.blue[700],
-      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue[700]!, Colors.blue[100]!],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF232F3E), // AWS Navy
+              Color(0xFF1A222E), // Darker AWS Navy
+            ],
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Choose an exam to practice:',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.8,
+          child: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 200.0,
+                floating: false,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  title: Text(
+                    'AWS Certification Prep',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
-                    itemCount: exams.length,
-                    itemBuilder: (context, index) {
-                      return FutureBuilder<bool>(
-                        future: _hasQuestionsForExam(exams[index]['name']),
+                  ),
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFF232F3E),
+                              Color(0xFF232F3E).withOpacity(0.7),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: -50,
+                        top: -50,
+                        child: Icon(
+                          Icons.cloud_circle,
+                          size: 200,
+                          color: Color(0xFFFF9900).withOpacity(0.2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                backgroundColor: Color(0xFF232F3E),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.all(16.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    Text(
+                      'Choose your certification path',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w300,
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    ...exams.map((exam) => Padding(
+                      padding: EdgeInsets.only(bottom: 16.0),
+                      child: FutureBuilder<bool>(
+                        future: _hasQuestionsForExam(exam['name']),
                         builder: (context, snapshot) {
                           final bool hasQuestions = snapshot.data ?? false;
                           return _buildExamCard(
-                            context, 
-                            exams[index], 
+                            context,
+                            exam,
                             enabled: hasQuestions,
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    )).toList(),
+                  ]),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -82,46 +114,82 @@ class MenuScreen extends StatelessWidget {
 
   Widget _buildExamCard(BuildContext context, Map<String, dynamic> exam, {bool enabled = true}) {
     return Card(
-      elevation: enabled ? 4 : 1,
+      elevation: enabled ? 8 : 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: enabled ? Colors.white : Colors.grey[300],
       child: InkWell(
-        onTap: enabled ? () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => QuestionScreen(examType: exam['name']),
-            ),
-          );
-        } : null,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+        onTap: enabled
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => QuestionScreen(examType: exam['name']),
+                  ),
+                );
+              }
+            : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: EdgeInsets.all(20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                exam['icon'],
-                size: 64,
-                color: enabled ? Colors.blue[700] : Colors.grey,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                exam['name'],
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: enabled ? Colors.black87 : Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              if (!enabled) 
-                const Padding(
-                  padding: EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    'No questions available',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: enabled ? Color(0xFFFF9900) : Colors.grey,
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: Icon(
+                      exam['icon'],
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          exam['name'],
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: enabled ? Color(0xFF232F3E) : Colors.grey[600],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          exam['description'],
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: enabled ? Colors.grey[600] : Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (!enabled)
+                Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 16, color: Colors.grey),
+                      SizedBox(width: 8),
+                      Text(
+                        'No questions available',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],
