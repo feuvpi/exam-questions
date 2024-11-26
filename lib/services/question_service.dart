@@ -8,46 +8,86 @@ import 'package:path/path.dart';
 class QuestionService {
   static final Logger _logger = Logger();
 
-  static List<Question> parseMarkdown2(String markdown) {
+static List<Question> parseMarkdown(String markdown) {
     List<Question> questions = [];
-    RegExp questionRegex = RegExp(
-      r'^\d+\.\s(.+?)\n\n(?:([A-D])\.\s(.+?)\n)+\n(?:Answer:\s*([A-D]))?(?:\n\nExplanation:\s*(.+?))?(?=\n\n\d+\.|\Z)',
+    
+    // Updated regex pattern to match the actual markdown format
+    final questionPattern = RegExp(
+      r'(\d+)\.\s+(.*?)\n\s+(?:- ([A-D])\.\s+(.*?)\n\s+)+\s+<details.*?>\s*<summary.*?>Answer.*?</summary>\s*Correct answer:\s*([A-D])',
       multiLine: true,
       dotAll: true,
     );
-    int i = 0;
-    for (Match match in questionRegex.allMatches(markdown)) {
+
+    final alternativePattern = RegExp(r'- ([A-D])\.\s+(.*?)\n');
+
+    for (Match match in questionPattern.allMatches(markdown)) {
       try {
-        String questionText = match.group(1)!.trim();
-        List<String> alternatives = [];
-        RegExp optionRegex = RegExp(r'([A-D])\.\s(.+)');
-        for (String line in match.group(0)!.split('\n')) {
-          Match? optionMatch = optionRegex.firstMatch(line);
-          if (optionMatch != null) {
-            alternatives.add(optionMatch.group(2)!.trim());
+        final questionNumber = match.group(1);
+        final questionText = match.group(2)?.trim();
+        final correctAnswer = match.group(5)?.trim();
+        
+        if (questionText == null || correctAnswer == null) continue;
+
+        // Find all alternatives for this question
+        final questionBlock = match.group(0) ?? '';
+        final alternatives = <String, String>{};
+        
+        for (Match altMatch in alternativePattern.allMatches(questionBlock)) {
+          final letter = altMatch.group(1);
+          final text = altMatch.group(2)?.trim();
+          if (letter != null && text != null) {
+            alternatives[letter] = text;
           }
         }
 
-        String correctAnswer = match.group(4) ?? '';
-        String explanation = match.group(5)?.trim() ?? '';
+        if (alternatives.length < 2) {
+          _logger.w('Question $questionNumber has insufficient alternatives');
+          continue;
+        }
 
         questions.add(Question(
-          examType: 'AWS Certifed Cloud Practitioner',
+          examType: 'AWS Certified Cloud Practitioner',
           question: questionText,
-          aAlternative: alternatives.length > 0 ? alternatives[0] : '',
-          bAlternative: alternatives.length > 1 ? alternatives[1] : '',
-          cAlternative: alternatives.length > 2 ? alternatives[2] : null,
-          dAlternative: alternatives.length > 3 ? alternatives[3] : null,
+          aAlternative: alternatives['A'] ?? '',
+          bAlternative: alternatives['B'] ?? '',
+          cAlternative: alternatives['C'],
+          dAlternative: alternatives['D'],
           correctAnswer: correctAnswer,
-          explanation: explanation,
+          explanation: '', // Explanation parsing could be added if needed
         ));
-        print("Processed and inserted questions from $questions[i]");
-        i++;
+
+        _logger.i('Successfully parsed question $questionNumber');
       } catch (e) {
-        _logger.w('Failed to parse question', error: e);
+        _logger.e('Failed to parse question', error: e);
       }
     }
 
     return questions;
+  }
+
+  static Future<bool> processMarkdownUrl(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      
+      if (response.statusCode == 200) {
+        final markdown = response.body;
+        final questions = parseMarkdown(markdown);
+        
+        if (questions.isEmpty) {
+          _logger.w('No questions parsed from $url');
+          return false;
+        }
+
+        await DatabaseHelper.insertQuestions(questions);
+        _logger.i('Successfully processed ${questions.length} questions from $url');
+        return true;
+      } else {
+        _logger.e('Failed to fetch URL: $url, Status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      _logger.e('Error processing URL: $url', error: e);
+      return false;
+    }
   }
 }

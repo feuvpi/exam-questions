@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'question_screen.dart';
+import '../services/database_helper.dart';
 
 class MenuScreen extends StatelessWidget {
   final List<Map<String, dynamic>> exams = [
@@ -10,6 +11,11 @@ class MenuScreen extends StatelessWidget {
   ];
 
   MenuScreen({Key? key}) : super(key: key);
+
+  Future<bool> _hasQuestionsForExam(String examType) async {
+    final questions = await DatabaseHelper.instance.getQuestions(examType);
+    return questions.isNotEmpty;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,9 +42,9 @@ class MenuScreen extends StatelessWidget {
                 Text(
                   'Choose an exam to practice:',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -52,7 +58,17 @@ class MenuScreen extends StatelessWidget {
                     ),
                     itemCount: exams.length,
                     itemBuilder: (context, index) {
-                      return _buildExamCard(context, exams[index]);
+                      return FutureBuilder<bool>(
+                        future: _hasQuestionsForExam(exams[index]['name']),
+                        builder: (context, snapshot) {
+                          final bool hasQuestions = snapshot.data ?? false;
+                          return _buildExamCard(
+                            context, 
+                            exams[index], 
+                            enabled: hasQuestions,
+                          );
+                        },
+                      );
                     },
                   ),
                 ),
@@ -64,19 +80,20 @@ class MenuScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildExamCard(BuildContext context, Map<String, dynamic> exam) {
+  Widget _buildExamCard(BuildContext context, Map<String, dynamic> exam, {bool enabled = true}) {
     return Card(
-      elevation: 4,
+      elevation: enabled ? 4 : 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: enabled ? Colors.white : Colors.grey[300],
       child: InkWell(
-        onTap: () {
+        onTap: enabled ? () {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => QuestionScreen(examType: exam['name']),
             ),
           );
-        },
+        } : null,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -85,16 +102,28 @@ class MenuScreen extends StatelessWidget {
               Icon(
                 exam['icon'],
                 size: 64,
-                color: Colors.blue[700],
+                color: enabled ? Colors.blue[700] : Colors.grey,
               ),
               const SizedBox(height: 16),
               Text(
                 exam['name'],
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: enabled ? Colors.black87 : Colors.grey[600],
+                ),
                 textAlign: TextAlign.center,
               ),
+              if (!enabled) 
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    'No questions available',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

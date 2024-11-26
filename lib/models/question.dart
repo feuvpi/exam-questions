@@ -37,23 +37,23 @@ class Question {
       'correctAnswer': correctAnswer,
       'explanation': explanation,
       'explanationUrl': explanationUrl,
-      'answeredRight': answeredRight,
+      'answeredRight': answeredRight == null ? null : (answeredRight! ? 1 : 0),
     };
   }
 
   static Question fromMap(Map<String, dynamic> map) {
     return Question(
       id: map['id'] as int?,
-      examType: map['examType'],
-      question: map['question'],
-      aAlternative: map['aAlternative'],
-      bAlternative: map['bAlternative'],
-      cAlternative: map['cAlternative'],
-      dAlternative: map['dAlternative'],
-      correctAnswer: map['correctAnswer'],
-      explanation: map['explanation'],
-      explanationUrl: map['explanationUrl'],
-      answeredRight: map['answeredRight'],
+      examType: map['examType'] as String,
+      question: map['question'] as String,
+      aAlternative: map['aAlternative'] as String,
+      bAlternative: map['bAlternative'] as String,
+      cAlternative: map['cAlternative'] as String?,
+      dAlternative: map['dAlternative'] as String?,
+      correctAnswer: map['correctAnswer'] as String,
+      explanation: map['explanation'] as String?,
+      explanationUrl: map['explanationUrl'] as String?,
+      answeredRight: map['answeredRight'] == null ? null : map['answeredRight'] == 1,
     );
   }
 }

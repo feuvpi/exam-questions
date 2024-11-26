@@ -59,11 +59,6 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<int> insertQuestion(Question question) async {
-    final db = await instance.database;
-    return await db.insert('questions', question.toMap());
-  }
-
   Future<List<Question>> getQuestions(String examType) async {
     final db = await instance.database;
     final result = await db.query(
@@ -87,88 +82,169 @@ class DatabaseHelper {
 
   //--
 
-  static Future<void> populateDatabaseFromUrls(List<String> urls) async {
+static Future<void> populateDatabaseFromUrls(List<String> urls) async {
+  try {
+    bool hasExistingQuestions = await instance.hasQuestions();
+    _logger.i('Checking for existing questions: $hasExistingQuestions');
+    
+    if (hasExistingQuestions) {
+      _logger.i('Database already contains questions, skipping population');
+      return;
+    }
+
     for (String url in urls) {
       try {
+        _logger.i('Processing URL: $url');
         await _processUrl(url);
-        print("Processed and inserted questions from $url");
-      } catch (e) {
-        _logger.e('Error processing URL: $url', error: e);
+        _logger.i('Successfully processed URL: $url');
+      } catch (e, stackTrace) {
+        _logger.e('Error processing URL: $url', error: e, stackTrace: stackTrace);
       }
     }
+
+    hasExistingQuestions = await instance.hasQuestions();
+    _logger.i('Final check for questions: $hasExistingQuestions');
+    
+    if (!hasExistingQuestions) {
+      const message = 'Failed to populate database - no questions were inserted';
+      _logger.e(message);
+      throw ParseException(message);
+    }
+  } catch (e, stackTrace) {
+    _logger.e('Error in populateDatabaseFromUrls', error: e, stackTrace: stackTrace);
+    rethrow;
   }
+}
+
 
   static Future<void> insertQuestions(List<Question> questions) async {
+  try {
     final db = await instance.database;
     Batch batch = db.batch();
-    _logger.e(questions);
+    
     for (var question in questions) {
-      _logger.e(question);
-      batch.insert('questions', question.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace);
+      batch.insert(
+        'questions', 
+        question.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace
+      );
     }
+    
     await batch.commit(noResult: true);
+    _logger.i('Successfully inserted ${questions.length} questions');
+  } catch (e) {
+    _logger.e('Error inserting questions', error: e);
+    throw ParseException('Failed to insert questions: $e');
   }
+}
 
   static List<Question> parseMarkdown(String markdown) {
-    List<Question> questions = [];
-    RegExp questionRegex = RegExp(
-      r'(\d+)\.\s(.+?)\n\n(?:- ([A-D])\.\s(.+?)\n)+\n(Answer:\s([A-D]))?\n\nExplanation:\s*(.*?)(?=\n\n\d+\.|\Z)',
-      multiLine: true,
-      dotAll: true,
-    );
+  List<Question> questions = [];
+  
+  // Debug: Log the first part of the markdown
+  _logger.i('First 500 characters of markdown:\n${markdown.substring(0, 500)}');
 
-    for (Match match in questionRegex.allMatches(markdown)) {
-      try {
-        String questionText = match.group(2)!.trim();
-        List<String> alternatives = [];
-        RegExp optionRegex = RegExp(r'- ([A-D])\.\s(.+?)$');
-        for (var i = 0; i < 4; i++) {
-          String? altText = match.group(i + 4)?.trim();
-          if (altText != null) alternatives.add(altText);
-        }
+  RegExp questionRegex = RegExp(
+    r'(\d+)\.\s+(.*?)(?=\s*-\s+[A-D]\.)((?:\s*-\s+[A-D]\.\s+.*?\n)+).*?<details.*?>\s*<summary.*?>Answer</summary>\s*Correct answer:\s*([A-D])',
+    multiLine: true,
+    dotAll: true,
+  );
 
-        String correctAnswer = match.group(6) ?? '';
-        String explanation = match.group(7)?.trim() ?? '';
+  RegExp alternativesRegex = RegExp(r'-\s+([A-D])\.\s+(.*?)(?=\s*-\s+[A-D]\.|\s*<details|$)', 
+    multiLine: true,
+    dotAll: true,
+  );
 
-        questions.add(Question(
-          examType: 'AWS Certified Cloud Practitioner',
-          question: questionText,
-          aAlternative: alternatives.isNotEmpty ? alternatives[0] : '',
-          bAlternative: alternatives.length > 1 ? alternatives[1] : '',
-          cAlternative: alternatives.length > 2 ? alternatives[2] : '',
-          dAlternative: alternatives.length > 3 ? alternatives[3] : '',
-          correctAnswer: correctAnswer,
-          explanation: explanation,
-        ));
-      } catch (e) {
-        _logger.w('Failed to parse question', error: e);
-      }
-    }
+  // Debug: Log all matches
+  var matches = questionRegex.allMatches(markdown).toList();
+  _logger.i('Found ${matches.length} question matches');
 
-    return questions;
-  }
-
-  static Future<void> _processUrl(String url) async {
+  for (Match match in matches) {
     try {
-      final response = await http.get(Uri.parse(url));
-      //_logger.w(response.statusCode);
-      if (response.statusCode == 200) {
-        String markdown = response.body;
-        //_logger.w(response.body);
-        List<Question> questions = parseMarkdown(markdown);
-        //_logger.w(questions);
-        await insertQuestions(questions);
-      } else {
-        throw HttpException(
-            'Failed to load questions. Status code: ${response.statusCode}');
+      final questionNumber = match.group(1);
+      final questionText = match.group(2)?.trim();
+      final alternativesText = match.group(3);
+      final correctAnswer = match.group(4)?.trim();
+      
+      // Debug: Log each question parsing attempt
+      _logger.i('Parsing question $questionNumber');
+      _logger.i('Question text: $questionText');
+      _logger.i('Alternatives text: $alternativesText');
+      _logger.i('Correct answer: $correctAnswer');
+
+      if (questionText == null || correctAnswer == null || alternativesText == null) {
+        _logger.w('Invalid question format for question $questionNumber');
+        continue;
       }
-    } on http.ClientException catch (e) {
-      throw NetworkException('Network error occurred: ${e.message}');
-    } catch (e) {
-      throw ParseException('Error parsing questions: $e');
+
+      // Extract alternatives
+      Map<String, String> alternatives = {};
+      for (Match altMatch in alternativesRegex.allMatches(alternativesText)) {
+        final letter = altMatch.group(1);
+        final text = altMatch.group(2)?.trim();
+        if (letter != null && text != null) {
+          alternatives[letter] = text;
+          _logger.i('Found alternative $letter: $text');
+        }
+      }
+
+      if (alternatives.isEmpty) {
+        _logger.w('No alternatives found for question $questionNumber');
+        continue;
+      }
+
+      questions.add(Question(
+        examType: 'AWS Certified Cloud Practitioner',
+        question: questionText,
+        aAlternative: alternatives['A'] ?? '',
+        bAlternative: alternatives['B'] ?? '',
+        cAlternative: alternatives['C'],
+        dAlternative: alternatives['D'],
+        correctAnswer: correctAnswer,
+        explanation: '', // We can add explanation parsing if needed
+      ));
+
+      _logger.i('Successfully parsed question $questionNumber');
+    } catch (e, stackTrace) {
+      _logger.e('Failed to parse question', error: e, stackTrace: stackTrace);
     }
   }
+
+  _logger.i('Total questions parsed: ${questions.length}');
+  return questions;
+}
+
+
+static Future<void> _processUrl(String url) async {
+  try {
+    _logger.i('Fetching URL: $url');
+    final response = await http.get(Uri.parse(url));
+    
+    _logger.i('Response status code: ${response.statusCode}');
+    if (response.statusCode == 200) {
+      String markdown = response.body;
+      _logger.i('Markdown content length: ${markdown.length}');
+      
+      List<Question> questions = parseMarkdown(markdown);
+      
+      if (questions.isEmpty) {
+        _logger.e('No questions parsed from markdown');
+        throw ParseException('No questions parsed from markdown');
+      }
+      
+      _logger.i('Parsed ${questions.length} questions, proceeding to insert');
+      await insertQuestions(questions);
+      _logger.i('Successfully inserted questions');
+    } else {
+      throw HttpException(
+          'Failed to load questions. Status code: ${response.statusCode}');
+    }
+  } catch (e, stackTrace) {
+    _logger.e('Error in _processUrl', error: e, stackTrace: stackTrace);
+    rethrow;
+  }
+}
+
 }
 
 class HttpException implements Exception {
