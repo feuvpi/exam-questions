@@ -11,6 +11,8 @@ void main() async {
   // await DatabaseHelper.printDatabaseLocation();
   await DatabaseHelper.populateDatabaseFromUrls([
     'https://raw.githubusercontent.com/kananinirav/AWS-Certified-Cloud-Practitioner-Notes/master/practice-exam/practice-exam-1.md',
+    'https://raw.githubusercontent.com/kananinirav/AWS-Certified-Cloud-Practitioner-Notes/master/practice-exam/practice-exam-2.md',
+    'https://raw.githubusercontent.com/kananinirav/AWS-Certified-Cloud-Practitioner-Notes/master/practice-exam/practice-exam-3.md',
     // Add more URLs here
   ]);
   runApp(MyApp());

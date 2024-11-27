@@ -385,9 +385,9 @@ class _QuestionScreenState extends State<QuestionScreen> with SingleTickerProvid
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8), 
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 245, 216, 31),
+                    color: Color(0xFFFF9900),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
