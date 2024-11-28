@@ -127,16 +127,17 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                   height: 180,
                                   child: SvgPicture.string(
                                     '''<?xml version="1.0" encoding="UTF-8"?>
-                                    <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
-                                      <circle cx="120" cy="120" r="120" fill="#232F3E"/>
-                                      <path d="M60 140 C60 100, 120 90, 150 100 C180 85, 220 100, 220 130 C220 160, 180 170, 150 160 C120 180, 60 170, 60 140" fill="#FF9900" opacity="0.9"/>
-                                      <circle cx="95" cy="125" r="8" fill="white"/>
-                                      <circle cx="120" cy="125" r="8" fill="white"/>
-                                      <circle cx="145" cy="125" r="8" fill="white"/>
-                                      <line x1="95" y1="125" x2="120" y2="125" stroke="white" stroke-width="3"/>
-                                      <line x1="120" y1="125" x2="145" y2="125" stroke="white" stroke-width="3"/>
-                                      <path d="M115 160 L130 175 L160 145" fill="none" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>''',
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Cloud shape -->
+  <path d="M140 100c0-22-18-40-40-40-18 0-33 12-38 28-2-1-4-1-6-1-11 0-20 9-20 20s9 20 20 20h84c11 0 20-9 20-20s-9-20-20-20c0 4 0 8 0 13z" 
+        fill="#37475A" /> <!-- Lighter AWS blue -->
+  
+  <!-- Form icon - even larger -->
+  <rect x="50" y="65" width="55" height="62" fill="#FF9900" rx="5" />
+  <rect x="62" y="77" width="31" height="5" fill="white" />
+  <rect x="62" y="89" width="31" height="5" fill="white" />
+  <rect x="62" y="101" width="31" height="5" fill="white" />
+</svg>''',
                                   ),
                                 ),
                                 SizedBox(height: 24),
