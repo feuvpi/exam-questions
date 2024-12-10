@@ -647,14 +647,17 @@ Widget build(BuildContext context) {
 }
 
 List<Widget> _buildAnswerButtons(Question question) {
+  // Create answers array only with non-null and non-empty alternatives
   final answers = [
-    {'label': 'A', 'text': question.aAlternative},
-    {'label': 'B', 'text': question.bAlternative},
-    if (question.cAlternative != null)
+    if (question.aAlternative.isNotEmpty)
+      {'label': 'A', 'text': question.aAlternative},
+    if (question.bAlternative.isNotEmpty)
+      {'label': 'B', 'text': question.bAlternative},
+    if (question.cAlternative?.isNotEmpty == true)  // Handle nullable string
       {'label': 'C', 'text': question.cAlternative!},
-    if (question.dAlternative != null)
+    if (question.dAlternative?.isNotEmpty == true)  // Handle nullable string
       {'label': 'D', 'text': question.dAlternative!},
-    if (question.eAlternative != null)
+    if (question.eAlternative?.isNotEmpty == true)  // Handle nullable string
       {'label': 'E', 'text': question.eAlternative!},
   ];
 
@@ -786,7 +789,6 @@ List<Widget> _buildAnswerButtons(Question question) {
     );
   }).toList();
 }
-
 Widget _buildQuestionHeader(Question question) {
   return Column(
     children: [

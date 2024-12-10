@@ -13,7 +13,7 @@ void main() async {
   
   try {
     // Reset database to ensure we have the latest schema
-    await DatabaseHelper.instance.resetDatabase();
+    // await DatabaseHelper.instance.resetDatabase();
     
     await DatabaseHelper.populateDatabaseFromUrls([
       'https://raw.githubusercontent.com/kananinirav/AWS-Certified-Cloud-Practitioner-Notes/master/practice-exam/practice-exam-1.md',
