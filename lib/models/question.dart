@@ -6,10 +6,13 @@ class Question {
   final String bAlternative;
   final String? cAlternative;
   final String? dAlternative;
+  final String? eAlternative;
   final String correctAnswer;
+  final String? secondAnswer;
   final String? explanation;
   final String? explanationUrl;
   bool? answeredRight;
+  Set<String> selectedAnswers = {};
 
   Question({
     this.id,
@@ -19,7 +22,9 @@ class Question {
     required this.bAlternative,
     this.cAlternative,
     this.dAlternative,
+    this.eAlternative,
     required this.correctAnswer,
+    this.secondAnswer,
     this.explanation,
     this.explanationUrl,
     this.answeredRight,
@@ -34,7 +39,9 @@ class Question {
       'bAlternative': bAlternative,
       'cAlternative': cAlternative,
       'dAlternative': dAlternative,
+      'eAlternative': eAlternative,
       'correctAnswer': correctAnswer,
+      'secondAnswer': secondAnswer,
       'explanation': explanation,
       'explanationUrl': explanationUrl,
       'answeredRight': answeredRight == null ? null : (answeredRight! ? 1 : 0),
@@ -50,10 +57,32 @@ class Question {
       bAlternative: map['bAlternative'] as String,
       cAlternative: map['cAlternative'] as String?,
       dAlternative: map['dAlternative'] as String?,
+      eAlternative: map['eAlternative'] as String?,
       correctAnswer: map['correctAnswer'] as String,
+      secondAnswer: map['secondAnswer'] as String?,
       explanation: map['explanation'] as String?,
       explanationUrl: map['explanationUrl'] as String?,
       answeredRight: map['answeredRight'] == null ? null : map['answeredRight'] == 1,
     );
   }
+
+  // Helper method to check if question has multiple answers
+  bool get hasMultipleAnswers => secondAnswer != null;
+
+  Set<String> get correctAnswers {
+    Set<String> answers = {correctAnswer};
+    if (secondAnswer != null) {
+      answers.add(secondAnswer!);
+    }
+    return answers;
+  }
+
+  bool isAnswerCorrect() {
+    if (hasMultipleAnswers) {
+      return selectedAnswers.length == correctAnswers.length &&
+             correctAnswers.every((answer) => selectedAnswers.contains(answer));
+    }
+    return selectedAnswers.length == 1 && selectedAnswers.first == correctAnswer;
+  }
+
 }

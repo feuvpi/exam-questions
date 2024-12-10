@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -56,13 +57,29 @@ class DatabaseHelper {
       bAlternative TEXT,
       cAlternative TEXT,
       dAlternative TEXT,
+      eAlternative TEXT,
       explanation TEXT,
       correctAnswer TEXT,
+      secondAnswer TEXT,
       explanationUrl TEXT,
       answeredRight INTEGER
     )
     ''');
   }
+
+  // You might also want to add this helper method
+Future<void> resetDatabase() async {
+  final logger = Logger();
+  try {
+    final db = await instance.database;
+    await db.execute('DROP TABLE IF EXISTS questions');
+    await _createDB(db, 2);
+    logger.i('Successfully reset database');
+  } catch (e) {
+    logger.e('Error resetting database: $e');
+    rethrow;
+  }
+}
 
   Future<List<Question>> getQuestions(String examType) async {
     final db = await instance.database;
@@ -88,168 +105,208 @@ class DatabaseHelper {
   //--
 
 static Future<void> populateDatabaseFromUrls(List<String> urls) async {
+  final logger = Logger();
+  
   try {
-    bool hasExistingQuestions = await instance.hasQuestions();
-    _logger.i('Checking for existing questions: $hasExistingQuestions');
+    logger.i('Starting database population from ${urls.length} URLs');
     
+    bool hasExistingQuestions = await instance.hasQuestions();
     if (hasExistingQuestions) {
-      _logger.i('Database already contains questions, skipping population');
+      logger.i('Database already contains questions, skipping population');
       return;
     }
 
+    int totalQuestions = 0;
+    int successfulUrls = 0;
+    
     for (String url in urls) {
       try {
-        _logger.i('Processing URL: $url');
         await _processUrl(url);
-        _logger.i('Successfully processed URL: $url');
-      } catch (e, stackTrace) {
-        _logger.e('Error processing URL: $url', error: e, stackTrace: stackTrace);
+        successfulUrls++;
+      } catch (e) {
+        logger.e('Failed to process URL: $url', error: e);
+        // Continue with other URLs
       }
     }
 
-    hasExistingQuestions = await instance.hasQuestions();
-    _logger.i('Final check for questions: $hasExistingQuestions');
-    
-    if (!hasExistingQuestions) {
-      const message = 'Failed to populate database - no questions were inserted';
-      _logger.e(message);
-      throw ParseException(message);
+    if (successfulUrls == 0) {
+      throw ParseException('Failed to process any URLs successfully');
     }
+
+    // Verify database population
+    hasExistingQuestions = await instance.hasQuestions();
+    if (!hasExistingQuestions) {
+      throw ParseException('Database population failed - no questions were inserted');
+    }
+
+    logger.i('Successfully populated database from $successfulUrls URLs');
   } catch (e, stackTrace) {
-    _logger.e('Error in populateDatabaseFromUrls', error: e, stackTrace: stackTrace);
+    logger.e('Error in populateDatabaseFromUrls', error: e, stackTrace: stackTrace);
     rethrow;
   }
 }
 
 
-  static Future<void> insertQuestions(List<Question> questions) async {
+
+ static Future<void> insertQuestions(List<Question> questions) async {
   try {
+    if (questions.isEmpty) {
+      _logger.e('Attempted to insert empty questions list');
+      return;
+    }
+
     final db = await instance.database;
     Batch batch = db.batch();
     
     for (var question in questions) {
+      // Add debug logging for each question being inserted
+      _logger.i('Preparing to insert question: ${question.question.substring(0, min(50, question.question.length))}...');
+      
+      Map<String, dynamic> questionMap = question.toMap();
+      _logger.i('Question map created successfully');
+      
       batch.insert(
         'questions', 
-        question.toMap(),
+        questionMap,
         conflictAlgorithm: ConflictAlgorithm.replace
       );
     }
     
     await batch.commit(noResult: true);
     _logger.i('Successfully inserted ${questions.length} questions');
-  } catch (e) {
-    _logger.e('Error inserting questions', error: e);
+  } catch (e, stackTrace) {
+    _logger.e('Error inserting questions', error: e, stackTrace: stackTrace);
     throw ParseException('Failed to insert questions: $e');
   }
 }
 
-  static List<Question> parseMarkdown(String markdown) {
+
+static List<Question> parseMarkdown(String markdown) {
   List<Question> questions = [];
+  final logger = Logger();
   
-  // Debug: Log the first part of the markdown
-  _logger.i('First 500 characters of markdown:\n${markdown.substring(0, 500)}');
+  try {
+    // Updated regex to handle the actual markdown format
+    RegExp questionRegex = RegExp(
+      r'(\d+)\.\s+(.*?)(?=\s*-\s+[A-E]\.)((?:\s*-\s+[A-E]\.\s+.*?(?=\s*-\s+[A-E]\.|\s*<details|\n\s*\d+\.|$))+).*?<details.*?<summary.*?Answer.*?</summary>\s*Correct answer:\s*([A-E](?:\s*,\s*[A-E])*)',
+      multiLine: true,
+      dotAll: true,
+    );
 
-  RegExp questionRegex = RegExp(
-    r'(\d+)\.\s+(.*?)(?=\s*-\s+[A-D]\.)((?:\s*-\s+[A-D]\.\s+.*?\n)+).*?<details.*?>\s*<summary.*?>Answer</summary>\s*Correct answer:\s*([A-D])',
-    multiLine: true,
-    dotAll: true,
-  );
+    RegExp alternativesRegex = RegExp(
+      r'-\s+([A-E])\.\s+(.*?)(?=\s*-\s+[A-E]\.|\s*<details|\n\s*\d+\.|$)',
+      multiLine: true,
+      dotAll: true,
+    );
 
-  RegExp alternativesRegex = RegExp(r'-\s+([A-D])\.\s+(.*?)(?=\s*-\s+[A-D]\.|\s*<details|$)', 
-    multiLine: true,
-    dotAll: true,
-  );
+    var matches = questionRegex.allMatches(markdown);
+    logger.i('Found ${matches.length} potential questions in markdown');
 
-  // Debug: Log all matches
-  var matches = questionRegex.allMatches(markdown).toList();
-  _logger.i('Found ${matches.length} question matches');
+    for (Match match in matches) {
+      try {
+        final questionNumber = match.group(1);
+        final questionText = match.group(2)?.trim();
+        final alternativesText = match.group(3);
+        final correctAnswersText = match.group(4)?.trim();
 
-  for (Match match in matches) {
-    try {
-      final questionNumber = match.group(1);
-      final questionText = match.group(2)?.trim();
-      final alternativesText = match.group(3);
-      final correctAnswer = match.group(4)?.trim();
-      
-      // Debug: Log each question parsing attempt
-      _logger.i('Parsing question $questionNumber');
-      _logger.i('Question text: $questionText');
-      _logger.i('Alternatives text: $alternativesText');
-      _logger.i('Correct answer: $correctAnswer');
+        logger.i('Processing question $questionNumber');
+        logger.i('Question text: ${questionText?.substring(0, min(50, questionText?.length ?? 0))}...');
+        logger.i('Alternatives text: $alternativesText');
+        logger.i('Correct answers: $correctAnswersText');
 
-      if (questionText == null || correctAnswer == null || alternativesText == null) {
-        _logger.w('Invalid question format for question $questionNumber');
-        continue;
-      }
-
-  
-      // Extract alternatives
-      Map<String, String> alternatives = {};
-      for (Match altMatch in alternativesRegex.allMatches(alternativesText)) {
-        final letter = altMatch.group(1);
-        final text = altMatch.group(2)?.trim();
-        if (letter != null && text != null) {
-          alternatives[letter] = text;
-          _logger.i('Found alternative $letter: $text');
+        if (questionText == null || alternativesText == null || correctAnswersText == null) {
+          logger.w('Missing required fields for question $questionNumber');
+          continue;
         }
+
+        // Parse alternatives
+        Map<String, String> alternatives = {};
+        for (Match altMatch in alternativesRegex.allMatches(alternativesText)) {
+          final letter = altMatch.group(1);
+          final text = altMatch.group(2)?.trim();
+          if (letter != null && text != null) {
+            alternatives[letter] = text;
+            logger.i('Found alternative $letter: $text');
+          }
+        }
+
+        if (alternatives.isEmpty) {
+          logger.w('No alternatives found for question $questionNumber');
+          continue;
+        }
+
+        // Handle multiple correct answers
+        List<String> correctAnswers = correctAnswersText
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+
+        if (correctAnswers.isEmpty) {
+          logger.w('No correct answers found for question $questionNumber');
+          continue;
+        }
+
+        questions.add(Question(
+          examType: 'AWS Certified Cloud Practitioner',
+          question: questionText,
+          aAlternative: alternatives['A'] ?? '',
+          bAlternative: alternatives['B'] ?? '',
+          cAlternative: alternatives['C'] ?? '',
+          dAlternative: alternatives['D'] ?? '',
+          eAlternative: alternatives['E'] ?? '',
+          correctAnswer: correctAnswers[0],
+          secondAnswer: correctAnswers.length > 1 ? correctAnswers[1] : null,
+          explanation: '', // Add explanation parsing if needed
+        ));
+
+        logger.i('Successfully added question $questionNumber');
+      } catch (e, stackTrace) {
+        logger.e('Error processing question: $e', stackTrace: stackTrace);
       }
-
-      if (alternatives.isEmpty) {
-        _logger.w('No alternatives found for question $questionNumber');
-        continue;
-      }
-
-      questions.add(Question(
-        examType: 'AWS Certified Cloud Practitioner',
-        question: questionText,
-        aAlternative: alternatives['A'] ?? '',
-        bAlternative: alternatives['B'] ?? '',
-        cAlternative: alternatives['C'],
-        dAlternative: alternatives['D'],
-        correctAnswer: correctAnswer,
-        explanation: '', // We can add explanation parsing if needed
-      ));
-
-      _logger.i('Successfully parsed question $questionNumber');
-    } catch (e, stackTrace) {
-      _logger.e('Failed to parse question', error: e, stackTrace: stackTrace);
     }
+  } catch (e, stackTrace) {
+    logger.e('Error parsing markdown: $e', stackTrace: stackTrace);
   }
 
-  _logger.i('Total questions parsed: ${questions.length}');
+  logger.i('Successfully parsed ${questions.length} questions');
   return questions;
 }
 
 
+
 static Future<void> _processUrl(String url) async {
+  final logger = Logger();
   try {
-    _logger.i('Fetching URL: $url');
+    logger.i('Fetching URL: $url');
     final response = await http.get(Uri.parse(url));
     
-    _logger.i('Response status code: ${response.statusCode}');
-    if (response.statusCode == 200) {
-      String markdown = response.body;
-      _logger.i('Markdown content length: ${markdown.length}');
-      
-      List<Question> questions = parseMarkdown(markdown);
-      
-      if (questions.isEmpty) {
-        _logger.e('No questions parsed from markdown');
-        throw ParseException('No questions parsed from markdown');
-      }
-      
-      _logger.i('Parsed ${questions.length} questions, proceeding to insert');
-      await insertQuestions(questions);
-      _logger.i('Successfully inserted questions');
-    } else {
-      throw HttpException(
-          'Failed to load questions. Status code: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      throw HttpException('Failed to load questions. Status code: ${response.statusCode}');
     }
+
+    String markdown = response.body;
+    if (markdown.isEmpty) {
+      throw ParseException('Empty markdown content received');
+    }
+
+    logger.i('Successfully fetched markdown (${markdown.length} bytes)');
+    List<Question> questions = parseMarkdown(markdown);
+    
+    if (questions.isEmpty) {
+      logger.w('No questions parsed from markdown at $url');
+      return;
+    }
+    
+    logger.i('Parsed ${questions.length} questions, proceeding to insert');
+    await insertQuestions(questions);
+    logger.i('Successfully processed URL: $url');
   } catch (e, stackTrace) {
-    _logger.e('Error in _processUrl', error: e, stackTrace: stackTrace);
+    logger.e('Error processing URL: $url', error: e, stackTrace: stackTrace);
     rethrow;
   }
 }
+
 
 static Future<void> printDatabaseLocation() async {
   try {
