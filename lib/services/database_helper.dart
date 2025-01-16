@@ -12,6 +12,7 @@ import '../models/question_filter.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
+  static const String DATABASE_NAME = 'questions.db';
   static Database? _database;
   static final Logger _logger = Logger();
 
@@ -32,6 +33,13 @@ class DatabaseHelper {
     );
     print("Found ${result.length} unanswered questions for $examType");
     return result.map((map) => Question.fromMap(map)).toList();
+  }
+
+    Future<String> getDatabasePath() async {
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final path = join(documentsDirectory.path, 'questions.db');
+    print('Database path: $path'); // This will show you the exact location
+    return path;
   }
 
   Future<bool> hasQuestions() async {
